@@ -1,6 +1,17 @@
 fastapi
-uvicorn
-pdfplumber
-sentence-transformers
-google-genai
+uvicorn[standard]
 python-multipart
+
+# Resume processing
+pdfplumber
+
+# RAG / embeddings
+sentence-transformers
+faiss-cpu
+
+# Google Gemini SDK
+google-genai
+
+# Utilities
+numpy
+scikit-learn
