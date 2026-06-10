@@ -1,106 +1,138 @@
+import uuid
+from threading import Lock
+
+llm_lock = Lock()
+
 from resume import read_resume, chunk_text
 from rag import build_index, search
 
 from fastapi import FastAPI, UploadFile, File
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 import shutil
 import os
 
 from llm import ask_llm
-from resume import read_resume
 from prompt import HR_PROMPT
 
 app = FastAPI()
 
-chat_history = [{"role": "system", "content": HR_PROMPT}]
-resume_text = ""
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "frontend")
+
+sessions = {}
 
 os.makedirs("uploads", exist_ok=True)
 
 
-# 1. Upload resume
+# -------------------------
+# UPLOAD RESUME
+# -------------------------
 @app.post("/upload")
-async def upload(file: UploadFile = File(...)):
-    global resume_text
+async def upload(file: UploadFile = File(...), session_id: str = None):
 
-    path = f"uploads/{file.filename}"
+    if not session_id:
+        session_id = str(uuid.uuid4())
+
+    path = f"uploads/{session_id}_{file.filename}"
 
     with open(path, "wb") as f:
         shutil.copyfileobj(file.file, f)
 
     resume_text = read_resume(path)
-
     chunks = chunk_text(resume_text)
     build_index(chunks)
 
-    return {"message": "Resume uploaded and indexed successfully"}
+    sessions[session_id] = {
+        "resume_text": resume_text,
+        "chat_history": [
+            {"role": "system", "content": HR_PROMPT}
+        ]
+    }
+
+    return {
+        "message": "Resume uploaded successfully",
+        "session_id": session_id
+    }
 
 
-# 2. Start interview
+# -------------------------
+# START INTERVIEW
+# -------------------------
 @app.get("/start")
-def start():
-    global chat_history
+def start(session_id: str):
 
-    relevant_context = search("start interview introduction resume")
+    session = sessions.get(session_id)
+    if not session:
+        return {"error": "Invalid session"}
 
-    chat_history.append({
-    "role": "user",
-    "content": f"""
-You are an expert HR interviewer.
+    relevant_context = search("introduce yourself resume summary")
 
-Use the resume context below to ask intelligent interview questions.
+    session["chat_history"].append({
+        "role": "user",
+        "content": f"""
+Start interview.
 
-RESUME CONTEXT:
-----------------
+Resume context:
 {relevant_context}
-----------------
-
-Now respond naturally like a real interviewer.
 """
-})
+    })
 
-    response = ask_llm(chat_history)
+    with llm_lock:
+        response = ask_llm(session["chat_history"])
 
-    chat_history.append({"role": "assistant", "content": response})
+    session["chat_history"].append({
+        "role": "assistant",
+        "content": response
+    })
 
     return {"question": response}
 
 
-# 3. Continue chat (SAFE FIX ONLY)
-from pydantic import BaseModel
+# -------------------------
+# CHAT
+# -------------------------
+@app.get("/chat")
+def chat(answer: str, session_id: str):
 
-class ChatRequest(BaseModel):
-    answer: str
-
-
-@app.post("/chat")
-def chat(answer: str):
+    session = sessions.get(session_id)
+    if not session:
+        return {"error": "Invalid session"}
 
     relevant_context = search(answer)
 
-    chat_history.append({
-    "role": "user",
-    "content": f"""
+    session["chat_history"].append({
+        "role": "user",
+        "content": f"""
 Candidate Answer:
 {answer}
 
 Resume Context:
-----------------
 {relevant_context}
-----------------
 
-Act as a professional HR interviewer.
-
-Use both the candidate's answer and the resume context to ask the next interview question.
+Ask next question strictly based on resume only.
 """
-})
+    })
 
-    response = ask_llm(chat_history)
+    with llm_lock:
+        response = ask_llm(session["chat_history"])
 
-    chat_history.append({"role": "assistant", "content": response})
-
-    MAX_HISTORY = 8
-
-    if len(chat_history) > MAX_HISTORY:
-        chat_history[:] = [chat_history[0]] + chat_history[-7:]
+    session["chat_history"].append({
+        "role": "assistant",
+        "content": response
+    })
 
     return {"question": response}
+
+
+# -------------------------
+# FRONTEND
+# -------------------------
+app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="static")

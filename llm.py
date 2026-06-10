@@ -1,14 +1,9 @@
 from google import genai
 import time
-import os
-from dotenv import load_dotenv
-from google import genai
 
-load_dotenv()
+
 
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
-
-#client = genai.Client(api_key="GEMINI_API_KEY")
 
 def ask_llm(messages, retries=3):
     for _ in range(retries):

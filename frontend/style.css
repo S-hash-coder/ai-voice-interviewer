@@ -1,0 +1,82 @@
+body {
+  font-family: Arial;
+  background: #0f172a;
+  color: white;
+  display: flex;
+  justify-content: center;
+}
+
+.container {
+  width: 500px;
+  margin-top: 30px;
+}
+
+#chatbox {
+  height: 500px;
+  overflow-y: auto;
+  background: #1e293b;
+  padding: 10px;
+  border-radius: 10px;
+}
+
+.msg {
+  margin: 10px 0;
+  padding: 10px;
+  border-radius: 10px;
+}
+
+.user {
+  background: #2563eb;
+  text-align: right;
+}
+
+.ai {
+  background: #334155;
+}
+
+.controls {
+  margin-top: 10px;
+  display: flex;
+  gap: 10px;
+}
+.chat-box::-webkit-scrollbar {
+    width: 6px;
+}
+
+.chat-box::-webkit-scrollbar-thumb {
+    background: #374151;
+    border-radius: 10px;
+}
+
+/* typing animation effect for messages */
+.message {
+    position: relative;
+}
+
+.message.bot::after {
+    content: "";
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    margin-left: 6px;
+    border-radius: 50%;
+    background: white;
+    animation: blink 1s infinite;
+}
+
+@keyframes blink {
+    0% { opacity: 0.2; }
+    50% { opacity: 1; }
+    100% { opacity: 0.2; }
+}
+
+/* better button feel */
+button {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+/* active listening indicator */
+.listening {
+    color: #22c55e;
+    font-weight: bold;
+}
